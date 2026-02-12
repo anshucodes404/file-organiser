@@ -12,6 +12,25 @@ void build_path(char *dest, const char *src, const char *file)
     strcat(dest, "\0");
 }
 
+// Creating the log file for maintaining records
+void write_log(const char *original_path, const char *new_path)
+{
+    char log_file_path[2048];
+    const char *home_dir = getenv("HOME");
+    build_path(log_file_path, home_dir, ".file_org.txt");
+
+    FILE *log_file = fopen(log_file_path, "a");
+
+    if (log_file == NULL)
+    {
+        fprintf(stderr, "Error opening log file: %s: %s\n", log_file_path, strerror(errno));
+        return;
+    }
+
+    fprintf(log_file, "%s|%s\n", original_path, new_path);
+    fclose(log_file);
+}
+
 int main(int args_count, char *args[])
 {
     int count = 0;
@@ -75,7 +94,10 @@ int main(int args_count, char *args[])
                 fprintf(stderr, "Error moving file: %s to %s: %s\n", file_path, new_path, strerror(errno));
             }
             else
+            {
                 count++;
+                write_log(file_path, new_path);
+            }
         }
 
         closedir(directory);
