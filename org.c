@@ -29,7 +29,7 @@ long take_input_timestamp(char *input, int size, char *prompt, bool is_req)
 
     if (!is_req && strcmp(input, "-") == 0)
     {
-        return 0; // Returning 0 means no end timestamp.
+        return 0;
     }
 
     int dat, mon, yr, hr, min, sec;
@@ -51,7 +51,6 @@ long take_input_timestamp(char *input, int size, char *prompt, bool is_req)
     return mktime(&time);
 }
 
-// Creating the log file for maintaining records
 void write_log(const char *original_path, const char *new_path)
 {
     time_t now = time(NULL);
@@ -143,7 +142,7 @@ void organise(int args_count, char *args[])
 
 void deorganise(int args_count, char *args[])
 {
-    printf("Undoing\n");
+    int count = 0;
 
     const char *home_dir = getenv("HOME");
     char log_file_path[512];
@@ -169,9 +168,10 @@ void deorganise(int args_count, char *args[])
 
     char str[2048];
 
+    printf("De-organising files...\n");
+
     while (fgets(str, sizeof(str), log_file) != NULL)
     {
-        printf("%s\n", str);
         char copy_str[2048];
         strcpy(copy_str, str);
 
@@ -184,16 +184,30 @@ void deorganise(int args_count, char *args[])
 
         long log_time = atol(timestamp);
 
-        if(log_time >= start_timestamp && (end_timestamp == 0 || log_time <= end_timestamp)){
-            if(rename(new_path, original_path) != 0){
+        if (log_time >= start_timestamp && (end_timestamp == 0 || log_time <= end_timestamp))
+        {
+            if (rename(new_path, original_path) != 0)
+            {
                 fprintf(stderr, "Error moving file: %s to %s: %s\n", new_path, original_path, strerror(errno));
             }
-        } else {
+            else
+                count++;
+        }
+        else
+        {
             fprintf(temp_file, "%s", str);
         }
     }
 
-    printf("%s\n", args[2]);
+    fclose(log_file);
+    fclose(temp_file);
+
+    if (rename(temp_file_path, log_file_path) != 0)
+    {
+        fprintf(stderr, "Error updating log file: %s: %s\n", log_file_path, strerror(errno));
+    }
+
+    printf("Successfully de-organised %d files. \n", count);
 }
 
 int main(int args_count, char *args[])
@@ -205,10 +219,9 @@ int main(int args_count, char *args[])
     }
     if (!strcmp(args[1], "-u"))
     {
-        deorganise(args_count, args); // if the second argument is -u, it will deorganise all the transactions done after the timestamp
+        deorganise(args_count, args);
         return 0;
     }
-    organise(args_count, args); // if the second argument is not -u, it will organise all the folders given
-
+    organise(args_count, args);
     return 0;
 }
