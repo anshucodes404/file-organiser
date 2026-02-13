@@ -3,6 +3,9 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdbool.h>
 
 void build_path(char *dest, const char *src, const char *file)
 {
@@ -12,34 +15,66 @@ void build_path(char *dest, const char *src, const char *file)
     strcat(dest, "\0");
 }
 
+long take_input_timestamp(char *input, int size, char *prompt, bool is_req)
+{
+    printf("Enter %s timestamp in format (dd:mm:yyyy hh:mm:ss): ", prompt);
+    fgets(input, size, stdin);
+    input[strcspn(input, "\n")] = 0;
+
+    if (is_req && input[0] == '\0')
+    {
+        fprintf(stderr, "Timestamp is required.\n");
+        return -1;
+    }
+
+    if (!is_req && strcmp(input, "-") == 0)
+    {
+        return 0; // Returning 0 means no end timestamp.
+    }
+
+    int dat, mon, yr, hr, min, sec;
+
+    if (sscanf(input, "%d:%d:%d %d:%d:%d", &dat, &mon, &yr, &hr, &min, &sec) != 6)
+    {
+        fprintf(stderr, "Invalid timestamp format. It should be (dd:mm:yyyy hh:mm:ss)  \n");
+        return -1;
+    }
+
+    struct tm time = {0};
+    time.tm_mday = dat;
+    time.tm_mon = mon - 1;
+    time.tm_year = yr - 1900;
+    time.tm_hour = hr;
+    time.tm_min = min;
+    time.tm_sec = sec;
+
+    return mktime(&time);
+}
+
 // Creating the log file for maintaining records
 void write_log(const char *original_path, const char *new_path)
 {
-    char log_file_path[2048];
+    time_t now = time(NULL);
+
+    char log_file_path[512];
     const char *home_dir = getenv("HOME");
     build_path(log_file_path, home_dir, ".file_org.txt");
 
     FILE *log_file = fopen(log_file_path, "a");
-
     if (log_file == NULL)
     {
         fprintf(stderr, "Error opening log file: %s: %s\n", log_file_path, strerror(errno));
         return;
     }
 
-    fprintf(log_file, "%s|%s\n", original_path, new_path);
+    fprintf(log_file, "%ld|%s|%s\n", now, original_path, new_path);
     fclose(log_file);
 }
 
-int main(int args_count, char *args[])
+void organise(int args_count, char *args[])
 {
     int count = 0;
     int count_dir = 0;
-    if (args_count < 2)
-    {
-        fprintf(stderr, "Usage: %s <at least one directory> \n", args[0]);
-        return 1;
-    }
 
     printf("Organising files in %d directories. \n", args_count - 1);
 
@@ -52,7 +87,7 @@ int main(int args_count, char *args[])
         if (directory == NULL)
         {
             fprintf(stderr, "Error opening directory: %s: %s\n", args[i], strerror(errno));
-            return 1;
+            return;
         }
 
         struct dirent *curr_file;
@@ -104,6 +139,76 @@ int main(int args_count, char *args[])
     }
     printf("Successfully organised %d files. \n", count);
     printf("Newly created %d directories. \n", count_dir);
+}
+
+void deorganise(int args_count, char *args[])
+{
+    printf("Undoing\n");
+
+    const char *home_dir = getenv("HOME");
+    char log_file_path[512];
+    char temp_file_path[512];
+    build_path(log_file_path, home_dir, ".file_org.txt");
+    build_path(temp_file_path, home_dir, ".temp_org.txt");
+
+    FILE *temp_file = fopen(temp_file_path, "w");
+    FILE *log_file = fopen(log_file_path, "r");
+    if (log_file == NULL || temp_file == NULL)
+        return;
+
+    long start_timestamp = 0, end_timestamp = 0;
+    char input[100];
+
+    start_timestamp = take_input_timestamp(input, sizeof(input), "start", true);
+    if (start_timestamp == -1)
+        return;
+
+    end_timestamp = take_input_timestamp(input, sizeof(input), "end", false);
+    if (end_timestamp == -1)
+        return;
+
+    char str[2048];
+
+    while (fgets(str, sizeof(str), log_file) != NULL)
+    {
+        printf("%s\n", str);
+        char copy_str[2048];
+        strcpy(copy_str, str);
+
+        char *timestamp = strtok(copy_str, "|");
+        char *original_path = strtok(NULL, "|");
+        char *new_path = strtok(NULL, "\n");
+
+        if (timestamp == NULL || original_path == NULL || new_path == NULL)
+            continue;
+
+        long log_time = atol(timestamp);
+
+        if(log_time >= start_timestamp && (end_timestamp == 0 || log_time <= end_timestamp)){
+            if(rename(new_path, original_path) != 0){
+                fprintf(stderr, "Error moving file: %s to %s: %s\n", new_path, original_path, strerror(errno));
+            }
+        } else {
+            fprintf(temp_file, "%s", str);
+        }
+    }
+
+    printf("%s\n", args[2]);
+}
+
+int main(int args_count, char *args[])
+{
+    if (args_count < 2)
+    {
+        fprintf(stderr, "Usage: org <directory1> [<directory2> ...]\n");
+        return 1;
+    }
+    if (!strcmp(args[1], "-u"))
+    {
+        deorganise(args_count, args); // if the second argument is -u, it will deorganise all the transactions done after the timestamp
+        return 0;
+    }
+    organise(args_count, args); // if the second argument is not -u, it will organise all the folders given
 
     return 0;
 }
