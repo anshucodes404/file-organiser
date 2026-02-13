@@ -44,7 +44,7 @@ export PATH="$HOME/bin:$PATH"
 ### Organize files
 
 ```bash
-./org <directory1> [<directory2> ...]
+org <directory1> [<directory2> ...]
 ```
 
 Example:
