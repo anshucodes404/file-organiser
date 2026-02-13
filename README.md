@@ -2,6 +2,8 @@
 
 A small utility that organizes files in one or more directories into subfolders by file extension, and can undo the moves using a log file.
 
+- Demo Video Link:- https://drive.google.com/file/d/1UtmtLU0YvAIMe1NpXZwindLuyMhmpg75/view?usp=drivesdk
+
 ## What it does
 
 - Scans each provided directory for regular files.
